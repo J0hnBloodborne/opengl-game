@@ -1,0 +1,12 @@
+# Build folders
+build/
+bin/
+out/
+
+# IDE settings (Visual Studio / VS Code)
+.vscode/
+.vs/
+*.user
+*.sln
+*.vcxproj
+CMakeSettings.json
