@@ -1,64 +1,90 @@
-#include<glad/glad.h>
-#include<GLFW/glfw3.h>
-#include<print>
-#include<glm/glm.hpp>
-#include<glm/gtc/matrix_transform.hpp>
-#include<glm/gtc/type_ptr.hpp>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <iostream>
 
-import shader;
+import game;
+import resource_manager;
 import window;
-import texture;
 
-using namespace std;
+// The Width of the screen
+const unsigned int SCREEN_WIDTH = 800;
+// The height of the screen
+const unsigned int SCREEN_HEIGHT = 600;
 
-int main()
+Game* Breakout;
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
+
+int main(int argc, char *argv[])
 {
-    print("Starting the game...");
-    
-    Window game(800, 600, "Game");
-    Shader triangleShader("shaders/shader.vs", "shaders/shader.fs");
-    Texture epsteinTexture("assets/epstein.jpg");
+    Window window(SCREEN_WIDTH, SCREEN_HEIGHT, "Breakout"); // Initialize Window (GLFW/GLAD)
 
-    float vertices[] = {
-        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,
-         0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-         0.0f,  0.5f, 0.0f, 0.5f, 1.0f
-    };
+    glfwSetKeyCallback(window.handle, key_callback);
 
-    unsigned int VBO, VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
+    // OpenGL configuration
+    // --------------------
+    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // Initialize game
+    // ---------------
+    Breakout = new Game(SCREEN_WIDTH, SCREEN_HEIGHT);
+    Breakout->Init();
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    // DeltaTime variables
+    // -------------------
+    float deltaTime = 0.0f;
+    float lastFrame = 0.0f;
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    // Start Game within Menu State
+    // ----------------------------
+    Breakout->State = GAME_ACTIVE;
 
-    while (game.isOpen()) {
-        game.processInput();
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glm::mat4 trans = glm::mat4(1.0f);
-        trans = glm::rotate(trans, (float)glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
+    while (window.isOpen())
+    {
+        // calculate delta time
+        // --------------------
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
         
-        triangleShader.use();
-        epsteinTexture.use();
+        // manage user input
+        // -----------------
+        window.pollEvents();
+        Breakout->ProcessInput(deltaTime);
 
-        unsigned int transformLoc = glGetUniformLocation(triangleShader.ID, "transform");
-        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
+        // update game state
+        // -----------------
+        Breakout->Update(deltaTime);
 
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // render
+        // ------
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        Breakout->Render();
 
-        game.swapBuffers();
-        game.pollEvents();
+        window.swapBuffers();
+    }
+
+    // delete managed resources
+    ResourceManager::Clear(); // Delete loaded shaders/textures
+    delete Breakout;
+
+    return 0;
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode)
+{
+    // when a user presses the escape key, we set the WindowShouldClose property to true, closing the application
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+    if (key >= 0 && key < 1024)
+    {
+        if (action == GLFW_PRESS)
+            Breakout->Keys[key] = true;
+        else if (action == GLFW_RELEASE)
+            Breakout->Keys[key] = false;
     }
 }

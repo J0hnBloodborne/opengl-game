@@ -9,8 +9,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 include(FetchContent)
 FetchContent_Declare(
     glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw
-    GIT_TAG master
+    URL https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip
 )
 FetchContent_MakeAvailable(glfw)
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -18,7 +17,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 file(GLOB MODULE_SOURCES CONFIGURE_DEPENDS src/*.ixx)
 add_executable(Game src/main.cpp src/glad.c ${MODULE_SOURCES})
 target_compile_features(Game PRIVATE cxx_std_23)
-target_link_libraries(Game glfw)
+target_link_libraries(Game glfw opengl32)
 
 add_custom_command(TARGET Game POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -33,18 +32,4 @@ add_custom_command(TARGET Game POST_BUILD
     COMMENT "Copying assets to output directory..."
 )
 
-FetchContent_Declare(
-    stb
-    GIT_REPOSITORY https://github.com/nothings/stb
-    GIT_TAG master
-)
-FetchContent_MakeAvailable(stb)
-include_directories(${stb_SOURCE_DIR})
-
-FetchContent_Declare(
-    glm
-    GIT_REPOSITORY https://github.com/g-truc/glm
-    GIT_TAG master
-)
-FetchContent_MakeAvailable(glm)
-include_directories(${glm_SOURCE_DIR})
+# stb, glm, and miniaudio are included locally in the include/ folder

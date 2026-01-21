@@ -2,41 +2,43 @@ module;
 
 #include <glad/glad.h>
 #include <iostream>
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 
 export module texture;
 
 export class Texture {
 public:
     unsigned int ID;
-    int width, height, nrChannels;
+    unsigned int width, height; // Width and height of loaded image in pixels
+    unsigned int Internal_Format; // Format of texture object
+    unsigned int Image_Format; // Format of loaded image
+    unsigned int Wrap_S; // Wrapping mode on S axis
+    unsigned int Wrap_T; // Wrapping mode on T axis
+    unsigned int Filter_Min; // Filtering mode if texture pixels < screen pixels
+    unsigned int Filter_Max; // Filtering mode if texture pixels > screen pixels
 
-    Texture(const char* imagePath) {
+    Texture() // Default constructor defaults to Nearest Neighbor for Pixel Art look
+        : width(0), height(0), Internal_Format(GL_RGB), Image_Format(GL_RGB), Wrap_S(GL_REPEAT), Wrap_T(GL_REPEAT), Filter_Min(GL_NEAREST), Filter_Max(GL_NEAREST)
+    {
         glGenTextures(1, &ID);
-        glBindTexture(GL_TEXTURE_2D, ID);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        stbi_set_flip_vertically_on_load(true);
-        
-        unsigned char* data = stbi_load(imagePath, &width, &height, &nrChannels, 0);        
-        if (data) {
-            GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-            glGenerateMipmap(GL_TEXTURE_2D);
-        }
-        else {
-            std::cout << "Failed to load texture: " << imagePath << std::endl;
-        }
-
-        stbi_image_free(data);
     }
 
-    void use() {
+    void Generate(unsigned int width, unsigned int height, unsigned char* data)
+    {
+        this->width = width;
+        this->height = height;
+        // Create Texture
+        glBindTexture(GL_TEXTURE_2D, this->ID);
+        glTexImage2D(GL_TEXTURE_2D, 0, this->Internal_Format, width, height, 0, this->Image_Format, GL_UNSIGNED_BYTE, data);
+        // Set Texture wrap and filter modes
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, this->Wrap_S);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, this->Wrap_T);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, this->Filter_Min);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, this->Filter_Max);
+        // Unbind texture
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    void Bind() const {
         glBindTexture(GL_TEXTURE_2D, ID);
     }
 };
