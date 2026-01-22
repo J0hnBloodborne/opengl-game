@@ -1,6 +1,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <glm/glm.hpp>
 
 import game;
 import resource_manager;
@@ -14,12 +15,16 @@ const unsigned int SCREEN_HEIGHT = 600;
 Game* Breakout;
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
 
 int main(int argc, char *argv[])
 {
     Window window(SCREEN_WIDTH, SCREEN_HEIGHT, "Breakout"); // Initialize Window (GLFW/GLAD)
 
     glfwSetKeyCallback(window.handle, key_callback);
+    glfwSetMouseButtonCallback(window.handle, mouse_button_callback);
+    glfwSetCursorPosCallback(window.handle, cursor_position_callback);
 
     // OpenGL configuration
     // --------------------
@@ -40,7 +45,7 @@ int main(int argc, char *argv[])
 
     // Start Game within Menu State
     // ----------------------------
-    Breakout->State = GAME_ACTIVE;
+    Breakout->State = GAME_MENU;
 
     while (window.isOpen())
     {
@@ -77,9 +82,6 @@ int main(int argc, char *argv[])
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode)
 {
-    // when a user presses the escape key, we set the WindowShouldClose property to true, closing the application
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
     if (key >= 0 && key < 1024)
     {
         if (action == GLFW_PRESS)
@@ -87,4 +89,22 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         else if (action == GLFW_RELEASE)
             Breakout->Keys[key] = false;
     }
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (button >= 0 && button < 3)
+    {
+        if (action == GLFW_PRESS)
+            Breakout->MouseButtons[button] = true;
+        else if (action == GLFW_RELEASE) {
+            Breakout->MouseButtons[button] = false;
+            Breakout->MouseProcessed[button] = false;
+        }
+    }
+}
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    Breakout->MousePos = glm::vec2((float)xpos, (float)ypos);
 }

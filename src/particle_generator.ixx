@@ -136,7 +136,16 @@ private:
         float random = ((rand() % 100) - 50) / 10.0f;
         float rColor = 0.5f + ((rand() % 100) / 100.0f);
         particle.Position = object.Position + random + offset;
-        particle.Color = glm::vec4(rColor, rColor, rColor, 1.0f);
+        
+        // Cyber-Kawaii Palette
+        glm::vec3 colors[] = {
+            glm::vec3(1.0f, 0.41f, 0.71f), // Hot Pink
+            glm::vec3(0.0f, 1.0f, 1.0f),   // Cyan
+            glm::vec3(0.2f, 1.0f, 0.2f)    // Lime
+        };
+        int index = rand() % 3;
+        particle.Color = glm::vec4(colors[index], 1.0f);
+        
         particle.Life = 1.0f;
         particle.Velocity = object.Velocity * 0.1f;
     }
