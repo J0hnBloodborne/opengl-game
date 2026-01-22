@@ -82,17 +82,38 @@ private:
     {
         // create texture object
         Texture texture;
-        if (alpha)
-        {
-            texture.Internal_Format = GL_RGBA;
-            texture.Image_Format = GL_RGBA;
-        }
         
         // load image
         int width, height, nrChannels;
         unsigned char* data = stbi_load(file, &width, &height, &nrChannels, 0);
-        // now generate texture
-        texture.Generate(width, height, data);
+        
+        if (data)
+        {
+            // Set format based on actual image channels, not just the alpha hint
+            if (nrChannels == 4)
+            {
+                texture.Internal_Format = GL_RGBA;
+                texture.Image_Format = GL_RGBA;
+            }
+            else if (nrChannels == 3)
+            {
+                texture.Internal_Format = GL_RGB;
+                texture.Image_Format = GL_RGB;
+            }
+            else if (nrChannels == 1)
+            {
+                texture.Internal_Format = GL_RED;
+                texture.Image_Format = GL_RED;
+            }
+            
+            // now generate texture
+            texture.Generate(width, height, data);
+        }
+        else
+        {
+            std::cout << "Failed to load texture: " << file << std::endl;
+        }
+        
         // and finally free image data
         stbi_image_free(data);
         return texture;
