@@ -28,8 +28,17 @@ export enum GameState {
     GAME_MENU,
     GAME_WIN,
     GAME_LOSE,
-    GAME_LEVEL_SELECT
+    GAME_LEVEL_SELECT,
+    GAME_PAUSE
 };
+
+// Pastel Pixel Art Color Palette
+const glm::vec3 COLOR_BG(0.95f, 0.90f, 0.95f);          // Soft lavender white
+const glm::vec3 COLOR_UI_OUTLINE(0.4f, 0.6f, 0.8f);    // Soft blue
+const glm::vec3 COLOR_ACCENT(1.0f, 0.6f, 0.8f);        // Pastel pink
+const glm::vec3 COLOR_HIGHLIGHT(0.6f, 0.9f, 0.9f);     // Pastel cyan
+const glm::vec3 COLOR_TEXT_NORMAL(0.3f, 0.3f, 0.4f);   // Soft dark
+const glm::vec3 COLOR_TEXT_SELECTED(0.9f, 0.4f, 0.6f); // Rose pink
 
 // Represents the four possible (collision) directions
 enum Direction {
@@ -65,6 +74,8 @@ public:
     unsigned int            Level;
     unsigned int            Lives;
     unsigned int            MenuSelection;
+    float                   ShakeTime;      // Screen shake duration
+    glm::vec2               ViewOffset;     // Screen shake offset
 
     // Game-related objects
     std::unique_ptr<SpriteRenderer>    Renderer;
@@ -75,8 +86,30 @@ public:
     std::unique_ptr<TextRenderer>      Text;
 
     Game(unsigned int width, unsigned int height) 
-        : State(GAME_MENU), Keys(), KeysProcessed(), MouseButtons(), MouseProcessed(), Width(width), Height(height), Level(0), Lives(3), MenuSelection(0)
+        : State(GAME_MENU), Keys(), KeysProcessed(), MouseButtons(), MouseProcessed(), Width(width), Height(height), Level(0), Lives(3), MenuSelection(0), ShakeTime(0.0f), ViewOffset(0.0f)
     { 
+    }
+    
+    // Screen shake trigger
+    void TriggerShake(float duration)
+    {
+        this->ShakeTime = duration;
+    }
+    
+    // Update screen shake
+    void UpdateShake(float dt)
+    {
+        if (this->ShakeTime > 0.0f)
+        {
+            this->ShakeTime -= dt;
+            float strength = 3.0f;
+            this->ViewOffset.x = ((rand() % 100) / 100.0f - 0.5f) * 2.0f * strength;
+            this->ViewOffset.y = ((rand() % 100) / 100.0f - 0.5f) * 2.0f * strength;
+        }
+        else
+        {
+            this->ViewOffset = glm::vec2(0.0f);
+        }
     }
     
     // Button hit detection helpers
@@ -141,13 +174,17 @@ public:
         ResourceManager::GetShader("particle").use().setInt("sprite", 0);
         ResourceManager::GetShader("particle").setMatrix4("projection", projection);
 
-        // load textures
-        ResourceManager::LoadTexture("assets/background.jpg", false, "background");
-        ResourceManager::LoadTexture("assets/face.png", true, "face");
-        ResourceManager::LoadTexture("assets/block.png", false, "block");
+        // load textures - Pastel Pixel Art theme
+        ResourceManager::LoadTexture("assets/background_pastel.png", false, "background");
+        ResourceManager::LoadTexture("assets/ball.png", true, "ball");
+        ResourceManager::LoadTexture("assets/block_crystal.png", false, "block");
         ResourceManager::LoadTexture("assets/block_solid.png", false, "block_solid");
         ResourceManager::LoadTexture("assets/paddle.png", true, "paddle");
         ResourceManager::LoadTexture("assets/particle.png", true, "particle");
+        ResourceManager::LoadTexture("assets/heart.png", true, "heart");
+        ResourceManager::LoadTexture("assets/button_atlas.png", true, "button");
+        ResourceManager::LoadTexture("assets/chibi_main.png", true, "chibi_main");
+        ResourceManager::LoadTexture("assets/chibi_sad.png", true, "chibi_sad");
 
         // set render-specific controls
         Renderer = std::make_unique<SpriteRenderer>(ResourceManager::GetShader("sprite"));
@@ -172,7 +209,7 @@ public:
         Player = std::make_unique<GameObject>(playerPos, PLAYER_SIZE, ResourceManager::GetTexture("paddle"));
         
         glm::vec2 ballPos = playerPos + glm::vec2(PLAYER_SIZE.x / 2.0f - BALL_RADIUS, -BALL_RADIUS * 2.0f);
-        Ball = std::make_unique<BallObject>(ballPos, BALL_RADIUS, INITIAL_BALL_VELOCITY, ResourceManager::GetTexture("face"));
+        Ball = std::make_unique<BallObject>(ballPos, BALL_RADIUS, INITIAL_BALL_VELOCITY, ResourceManager::GetTexture("ball"));
         
         // play simple startup sound
         Audio->Play("assets/audio/bleep.wav");
@@ -180,6 +217,13 @@ public:
 
     void Update(float dt)
     {
+        // Update screen shake
+        this->UpdateShake(dt);
+        
+        // Only update game logic when active
+        if (this->State != GAME_ACTIVE)
+            return;
+            
         // update objects
         Ball->Move(dt, this->Width);
         // check for collisions
@@ -189,6 +233,8 @@ public:
         if (Ball->Position.y >= this->Height)
         {
             --this->Lives;
+            this->TriggerShake(0.3f); // Shake on life loss
+            Audio->Play("assets/audio/lose.wav");
             if (this->Lives == 0)
             {
                 this->ResetLevel();
@@ -201,6 +247,7 @@ public:
         // check win condition
         if (this->State == GAME_ACTIVE && this->Levels[this->Level].IsCompleted())
         {
+            Audio->Play("assets/audio/win.wav");
             this->Level = (this->Level + 1) % this->Levels.size();
             this->ResetLevel();
             this->ResetPlayer();
@@ -216,16 +263,19 @@ public:
             if (this->Keys[GLFW_KEY_UP] && !this->KeysProcessed[GLFW_KEY_UP])
             {
                 this->MenuSelection = (this->MenuSelection + 2) % 3;
+                Audio->Play("assets/audio/ui_select.wav");
                 this->KeysProcessed[GLFW_KEY_UP] = true;
             }
             if (this->Keys[GLFW_KEY_DOWN] && !this->KeysProcessed[GLFW_KEY_DOWN])
             {
                 this->MenuSelection = (this->MenuSelection + 1) % 3;
+                Audio->Play("assets/audio/ui_select.wav");
                 this->KeysProcessed[GLFW_KEY_DOWN] = true;
             }
             if ((this->Keys[GLFW_KEY_ENTER] && !this->KeysProcessed[GLFW_KEY_ENTER]) || 
                 (this->MouseButtons[0] && !this->MouseProcessed[0] && IsMouseOverButton(this->MenuSelection)))
             {
+                Audio->Play("assets/audio/ui_confirm.wav");
                 if (this->MenuSelection == 0) // Start Game
                 {
                     this->State = GAME_LEVEL_SELECT;
@@ -257,16 +307,19 @@ public:
             if (this->Keys[GLFW_KEY_UP] && !this->KeysProcessed[GLFW_KEY_UP])
             {
                 this->MenuSelection = (this->MenuSelection + 4) % 5;
+                Audio->Play("assets/audio/ui_select.wav");
                 this->KeysProcessed[GLFW_KEY_UP] = true;
             }
             if (this->Keys[GLFW_KEY_DOWN] && !this->KeysProcessed[GLFW_KEY_DOWN])
             {
                 this->MenuSelection = (this->MenuSelection + 1) % 5;
+                Audio->Play("assets/audio/ui_select.wav");
                 this->KeysProcessed[GLFW_KEY_DOWN] = true;
             }
             if ((this->Keys[GLFW_KEY_ENTER] && !this->KeysProcessed[GLFW_KEY_ENTER]) ||
                 (this->MouseButtons[0] && !this->MouseProcessed[0] && IsMouseOverLevelButton(this->MenuSelection)))
             {
+                Audio->Play("assets/audio/ui_confirm.wav");
                 if (MenuSelection < 4) {
                     this->Level = MenuSelection;
                     this->ResetLevel();
@@ -301,13 +354,26 @@ public:
                 this->KeysProcessed[GLFW_KEY_ENTER] = true;
             }
         }
-        if (this->State == GAME_ACTIVE)
+        if (this->State == GAME_PAUSE)
         {
-            // ESC pauses/returns to menu
             if (this->Keys[GLFW_KEY_ESCAPE] && !this->KeysProcessed[GLFW_KEY_ESCAPE])
+            {
+                this->State = GAME_ACTIVE;
+                this->KeysProcessed[GLFW_KEY_ESCAPE] = true;
+            }
+            if (this->Keys[GLFW_KEY_ENTER] && !this->KeysProcessed[GLFW_KEY_ENTER])
             {
                 this->State = GAME_MENU;
                 this->MenuSelection = 0;
+                this->KeysProcessed[GLFW_KEY_ENTER] = true;
+            }
+        }
+        if (this->State == GAME_ACTIVE)
+        {
+            // ESC pauses the game
+            if (this->Keys[GLFW_KEY_ESCAPE] && !this->KeysProcessed[GLFW_KEY_ESCAPE])
+            {
+                this->State = GAME_PAUSE;
                 this->KeysProcessed[GLFW_KEY_ESCAPE] = true;
             }
             
@@ -341,8 +407,11 @@ public:
         // draw background
         Renderer->DrawSprite(ResourceManager::GetTexture("background"), glm::vec2(0.0f, 0.0f), glm::vec2(this->Width, this->Height), 0.0f);
 
-        if (this->State == GAME_ACTIVE || this->State == GAME_WIN || this->State == GAME_LOSE)
+        if (this->State == GAME_ACTIVE || this->State == GAME_WIN || this->State == GAME_LOSE || this->State == GAME_PAUSE)
         {
+            // Apply screen shake offset
+            glm::vec2 shakeOffset = this->ViewOffset;
+            
             // Draw Shadows (Fake 3D Depth) - Pass 1
             glm::vec2 shadowOffset(3.0f, 3.0f);
             glm::vec3 shadowColor(0.1f, 0.1f, 0.1f); // Dark Grey/Blackish
@@ -351,94 +420,118 @@ public:
             for (GameObject &box : this->Levels[this->Level].Bricks)
             {
                 if (!box.Destroyed)
-                    Renderer->DrawSprite(box.Sprite, box.Position + shadowOffset, box.Size, box.Rotation, shadowColor);
+                    Renderer->DrawSprite(box.Sprite, box.Position + shadowOffset + shakeOffset, box.Size, box.Rotation, shadowColor);
             }
             
             // Shadow for Player
-            Renderer->DrawSprite(Player->Sprite, Player->Position + shadowOffset, Player->Size, Player->Rotation, shadowColor);
+            Renderer->DrawSprite(Player->Sprite, Player->Position + shadowOffset + shakeOffset, Player->Size, Player->Rotation, shadowColor);
             
             // Shadow for Ball
-            Renderer->DrawSprite(Ball->Sprite, Ball->Position + shadowOffset, glm::vec2(Ball->Radius * 2.0f), 0.0f, shadowColor);
+            Renderer->DrawSprite(Ball->Sprite, Ball->Position + shadowOffset + shakeOffset, glm::vec2(Ball->Radius * 2.0f), 0.0f, shadowColor);
 
-            // Draw Main Objects - Pass 2
-            this->Levels[this->Level].Draw(*Renderer);
-            Player->Draw(*Renderer);
+            // Draw Main Objects - Pass 2 (with shake)
+            for (GameObject &box : this->Levels[this->Level].Bricks)
+            {
+                if (!box.Destroyed)
+                    Renderer->DrawSprite(box.Sprite, box.Position + shakeOffset, box.Size, box.Rotation, box.Color);
+            }
+            Renderer->DrawSprite(Player->Sprite, Player->Position + shakeOffset, Player->Size, Player->Rotation, Player->Color);
             Particles->Draw();
-            Ball->Draw(*Renderer);
+            Renderer->DrawSprite(Ball->Sprite, Ball->Position + shakeOffset, glm::vec2(Ball->Radius * 2.0f), 0.0f, Ball->Color);
             
-            // UI
-            if (this->State == GAME_ACTIVE) {
-                 Text->RenderText("Lives: " + std::to_string(this->Lives), 5.0f, 5.0f, 1.0f);
-                 Text->RenderText("Level: " + std::to_string(this->Level + 1), this->Width - 120.0f, 5.0f, 1.0f);
+            // UI - show during active and pause
+            if (this->State == GAME_ACTIVE || this->State == GAME_PAUSE) {
+                 // Render heart icons for lives
+                 float heartSize = 28.0f;
+                 for (unsigned int i = 0; i < this->Lives; i++)
+                 {
+                     Renderer->DrawSprite(ResourceManager::GetTexture("heart"), 
+                         glm::vec2(5.0f + i * (heartSize + 5.0f), 5.0f), 
+                         glm::vec2(heartSize), 0.0f);
+                 }
+                 Text->RenderText("Level: " + std::to_string(this->Level + 1), this->Width - 120.0f, 5.0f, 1.0f, COLOR_TEXT_NORMAL);
             }
         }
         
         if (this->State == GAME_MENU)
         {
-            // Title
-            Text->RenderText("BREAKOUT", this->Width / 2.0f - 100.0f, 120.0f, 2.0f, glm::vec3(1.0f, 0.41f, 0.71f)); // Hot Pink
-
-            // Button styling - Cyber Kawaii
-            glm::vec3 selectedColor(0.0f, 1.0f, 1.0f);  // Cyan
-            glm::vec3 normalColor(1.0f, 1.0f, 1.0f);    // White
-            glm::vec3 hoverBg(0.2f, 0.2f, 0.3f);        // Dark blue-ish
+            // Mascot chibi on the right side
+            Renderer->DrawSprite(ResourceManager::GetTexture("chibi_main"), 
+                glm::vec2(this->Width - 180.0f, this->Height / 2.0f - 80.0f), 
+                glm::vec2(160.0f, 160.0f), 0.0f);
             
+            // Title with pastel accent
+            Text->RenderText("BREAKOUT", this->Width / 2.0f - 100.0f, 120.0f, 2.0f, COLOR_ACCENT);
+
             float btnX = this->Width / 2.0f - 100.0f;
             float btnY = this->Height / 2.0f;
             
-            // Draw button backgrounds
+            // Draw button backgrounds with soft colors
             for (int i = 0; i < 3; i++)
             {
                 float y = btnY + i * 50.0f;
                 if (this->MenuSelection == (unsigned int)i)
-                    Renderer->DrawSprite(ResourceManager::GetTexture("block"), glm::vec2(btnX - 10.0f, y - 5.0f), glm::vec2(220.0f, 35.0f), 0.0f, glm::vec3(0.3f, 0.1f, 0.4f));
+                    Renderer->DrawSprite(ResourceManager::GetTexture("button"), glm::vec2(btnX - 10.0f, y - 5.0f), glm::vec2(220.0f, 35.0f), 0.0f, COLOR_HIGHLIGHT);
             }
             
-            Text->RenderText("> Start Game", btnX, btnY, 1.0f, this->MenuSelection == 0 ? selectedColor : normalColor);
-            Text->RenderText("> Select Level", btnX, btnY + 50.0f, 1.0f, this->MenuSelection == 1 ? selectedColor : normalColor);
-            Text->RenderText("> Exit", btnX, btnY + 100.0f, 1.0f, this->MenuSelection == 2 ? selectedColor : normalColor);
+            Text->RenderText("> Start Game", btnX, btnY, 1.0f, this->MenuSelection == 0 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("> Select Level", btnX, btnY + 50.0f, 1.0f, this->MenuSelection == 1 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("> Exit", btnX, btnY + 100.0f, 1.0f, this->MenuSelection == 2 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
             
             // Controls hint
-            Text->RenderText("Arrow Keys / Mouse to navigate, Enter / Click to select", 120.0f, this->Height - 40.0f, 0.5f, glm::vec3(0.6f, 0.6f, 0.6f));
+            Text->RenderText("Arrow Keys / Mouse to navigate, Enter / Click to select", 120.0f, this->Height - 40.0f, 0.5f, COLOR_UI_OUTLINE);
         }
 
         if (this->State == GAME_LEVEL_SELECT)
         {
-            Text->RenderText("SELECT LEVEL", this->Width / 2.0f - 120.0f, 100.0f, 1.5f, glm::vec3(1.0f, 0.41f, 0.71f));
-            
-            glm::vec3 selectedColor(0.0f, 1.0f, 1.0f);  // Cyan
-            glm::vec3 normalColor(1.0f, 1.0f, 1.0f);    // White
+            Text->RenderText("SELECT LEVEL", this->Width / 2.0f - 120.0f, 100.0f, 1.5f, COLOR_ACCENT);
             
             float btnX = this->Width / 2.0f - 100.0f;
             float btnY = this->Height / 2.0f - 60.0f;
             
-            // Draw button backgrounds
+            // Draw button backgrounds with pastel highlight
             for (int i = 0; i < 5; i++)
             {
                 float y = btnY + i * 50.0f;
                 if (this->MenuSelection == (unsigned int)i)
-                    Renderer->DrawSprite(ResourceManager::GetTexture("block"), glm::vec2(btnX - 10.0f, y - 5.0f), glm::vec2(220.0f, 35.0f), 0.0f, glm::vec3(0.3f, 0.1f, 0.4f));
+                    Renderer->DrawSprite(ResourceManager::GetTexture("block"), glm::vec2(btnX - 10.0f, y - 5.0f), glm::vec2(220.0f, 35.0f), 0.0f, COLOR_HIGHLIGHT * 0.5f);
             }
             
-            Text->RenderText("> Level 1", btnX, btnY, 1.0f, this->MenuSelection == 0 ? selectedColor : normalColor);
-            Text->RenderText("> Level 2", btnX, btnY + 50.0f, 1.0f, this->MenuSelection == 1 ? selectedColor : normalColor);
-            Text->RenderText("> Level 3", btnX, btnY + 100.0f, 1.0f, this->MenuSelection == 2 ? selectedColor : normalColor);
-            Text->RenderText("> Level 4", btnX, btnY + 150.0f, 1.0f, this->MenuSelection == 3 ? selectedColor : normalColor);
-            Text->RenderText("> Back", btnX, btnY + 200.0f, 1.0f, this->MenuSelection == 4 ? selectedColor : normalColor);
+            Text->RenderText("> Level 1", btnX, btnY, 1.0f, this->MenuSelection == 0 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("> Level 2", btnX, btnY + 50.0f, 1.0f, this->MenuSelection == 1 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("> Level 3", btnX, btnY + 100.0f, 1.0f, this->MenuSelection == 2 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("> Level 4", btnX, btnY + 150.0f, 1.0f, this->MenuSelection == 3 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("> Back", btnX, btnY + 200.0f, 1.0f, this->MenuSelection == 4 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
             
-            Text->RenderText("ESC to go back", this->Width / 2.0f - 70.0f, this->Height - 40.0f, 0.5f, glm::vec3(0.6f, 0.6f, 0.6f));
+            Text->RenderText("ESC to go back", this->Width / 2.0f - 70.0f, this->Height - 40.0f, 0.5f, COLOR_UI_OUTLINE);
         }
 
         if (this->State == GAME_WIN)
         {
-            Text->RenderText("You WON!!!", 320.0f, Height / 2.0f - 20.0f, 1.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-            Text->RenderText("Press ENTER to return to Menu", 130.0f, Height / 2.0f, 1.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+            // Happy chibi for win
+            Renderer->DrawSprite(ResourceManager::GetTexture("chibi_main"), 
+                glm::vec2(this->Width / 2.0f - 60.0f, this->Height / 2.0f - 120.0f), 
+                glm::vec2(120.0f, 120.0f), 0.0f);
+            Text->RenderText("YOU WON!", this->Width / 2.0f - 80.0f, Height / 2.0f + 20.0f, 1.5f, COLOR_HIGHLIGHT);
+            Text->RenderText("Press ENTER to return to Menu", 130.0f, Height / 2.0f + 70.0f, 1.0f, COLOR_TEXT_NORMAL);
         }
         
         if (this->State == GAME_LOSE)
         {
-            Text->RenderText("GAME OVER", this->Width / 2.0f - 90.0f, this->Height / 2.0f - 20.0f, 1.5f, glm::vec3(1.0f, 0.0f, 0.0f));
-            Text->RenderText("Press ENTER to return to Menu", 130.0f, this->Height / 2.0f + 40.0f, 1.0f, glm::vec3(1.0f));
+            // Sad chibi for game over
+            Renderer->DrawSprite(ResourceManager::GetTexture("chibi_sad"), 
+                glm::vec2(this->Width / 2.0f - 60.0f, this->Height / 2.0f - 120.0f), 
+                glm::vec2(120.0f, 120.0f), 0.0f);
+            Text->RenderText("GAME OVER", this->Width / 2.0f - 90.0f, this->Height / 2.0f + 20.0f, 1.5f, COLOR_ACCENT);
+            Text->RenderText("Press ENTER to return to Menu", 130.0f, this->Height / 2.0f + 70.0f, 1.0f, COLOR_TEXT_NORMAL);
+        }
+        
+        if (this->State == GAME_PAUSE)
+        {
+            // Semi-transparent overlay effect (darken existing scene)
+            Text->RenderText("PAUSED", this->Width / 2.0f - 70.0f, this->Height / 2.0f - 40.0f, 2.0f, COLOR_ACCENT);
+            Text->RenderText("ESC to Resume", this->Width / 2.0f - 70.0f, this->Height / 2.0f + 20.0f, 0.8f, COLOR_TEXT_NORMAL);
+            Text->RenderText("ENTER to Quit to Menu", this->Width / 2.0f - 100.0f, this->Height / 2.0f + 50.0f, 0.8f, COLOR_TEXT_NORMAL);
         }
     }
 
@@ -456,7 +549,9 @@ public:
                         box.Destroyed = true;
                         Audio->Play("assets/audio/bleep.wav");
                     } else {
-                        // Audio->Play("assets/audio/solid.wav");
+                        // Shake on solid block hit
+                        this->TriggerShake(0.05f);
+                        Audio->Play("assets/audio/solid.wav");
                     }
                     
                     // collision resolution
@@ -501,7 +596,7 @@ public:
             Ball->Velocity.y = -1.0f * std::abs(Ball->Velocity.y);
             Ball->Velocity = glm::normalize(Ball->Velocity) * glm::length(oldVelocity);
 
-            Audio->Play("assets/audio/pop.wav"); // Pop sound on paddle
+            Audio->Play("assets/audio/paddle_hit.wav"); // Paddle hit sound
         }
     }
 
