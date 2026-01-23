@@ -10,7 +10,6 @@ import shader;
 import texture;
 import game_object;
 
-// Represents a single particle and its state
 struct Particle {
     glm::vec2 Position, Velocity;
     glm::vec4 Color;
@@ -28,32 +27,27 @@ public:
         this->init();
     }
     
-    // update all particles
     void Update(float dt, GameObject &object, unsigned int newParticles, glm::vec2 offset = glm::vec2(0.0f, 0.0f))
     {
-        // add new particles 
         for (unsigned int i = 0; i < newParticles; ++i)
         {
             int unusedParticle = this->firstUnusedParticle();
             this->respawnParticle(this->particles[unusedParticle], object, offset);
         }
-        // update all particles
         for (unsigned int i = 0; i < this->amount; ++i)
         {
             Particle &p = this->particles[i];
-            p.Life -= dt; // reduce life
+            p.Life -= dt;
             if (p.Life > 0.0f)
-            {	// particle is alive, thus update
+            {
                 p.Position -= p.Velocity * dt; 
-                p.Color.a -= dt * 2.5f; // fade out alpha
+                p.Color.a -= dt * 2.5f;
             }
         }
     }
     
-    // render all particles
     void Draw()
     {
-        // use additive blending to give it a 'glow' effect
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
         this->shader.use();
         for (Particle particle : this->particles)
@@ -68,7 +62,6 @@ public:
                 glBindVertexArray(0);
             }
         }
-        // don't forget to reset to default blending mode
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
 
@@ -82,7 +75,6 @@ private:
 
     void init()
     {
-        // set up mesh and attribute properties
         unsigned int VBO;
         float particle_quad[] = {
             0.0f, 1.0f, 0.0f, 1.0f,
@@ -96,37 +88,30 @@ private:
         glGenVertexArrays(1, &this->VAO);
         glGenBuffers(1, &VBO);
         glBindVertexArray(this->VAO);
-        // fill mesh buffer
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(particle_quad), particle_quad, GL_STATIC_DRAW);
-        // set mesh attributes
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
         glBindVertexArray(0);
     
-        // create this->amount default particle instances
         for (unsigned int i = 0; i < this->amount; ++i)
             this->particles.push_back(Particle());
     }
 
-    // stores the index of the last particle used (for quick access to next dead particle)
     unsigned int firstUnusedParticle()
     {
-        // first search from last used particle, this will usually return almost instantly
         for (unsigned int i = lastUsedParticle; i < this->amount; ++i){
             if (this->particles[i].Life <= 0.0f){
                 lastUsedParticle = i;
                 return i;
             }
         }
-        // otherwise, do a linear search
         for (unsigned int i = 0; i < lastUsedParticle; ++i){
             if (this->particles[i].Life <= 0.0f){
                 lastUsedParticle = i;
                 return i;
             }
         }
-        // all particles are taken, override the first one (note that if it repeatedly hits this case, more particles should be reserved)
         lastUsedParticle = 0;
         return 0;
     }
@@ -137,11 +122,10 @@ private:
         float rColor = 0.5f + ((rand() % 100) / 100.0f);
         particle.Position = object.Position + random + offset;
         
-        // Cyber-Kawaii Palette
         glm::vec3 colors[] = {
-            glm::vec3(1.0f, 0.41f, 0.71f), // Hot Pink
-            glm::vec3(0.0f, 1.0f, 1.0f),   // Cyan
-            glm::vec3(0.2f, 1.0f, 0.2f)    // Lime
+            glm::vec3(1.0f, 0.41f, 0.71f),
+            glm::vec3(0.0f, 1.0f, 1.0f),
+            glm::vec3(0.2f, 1.0f, 0.2f)
         };
         int index = rand() % 3;
         particle.Color = glm::vec4(colors[index], 1.0f);

@@ -11,7 +11,6 @@ import texture;
 export class BallObject : public GameObject
 {
 public:
-    // ball state	
     float Radius;
     bool  Stuck;
     bool  Sticky;
@@ -24,12 +23,9 @@ public:
 
     glm::vec2 Move(float dt, unsigned int window_width)
     {
-        // if not stuck to player board
         if (!this->Stuck)
         {
-            // move the ball
             this->Position += this->Velocity * dt;
-            // check if outside window bounds; if so, reverse velocity and restore at correct position
             if (this->Position.x <= 0.0f)
             {
                 this->Velocity.x = -this->Velocity.x;
@@ -49,7 +45,6 @@ public:
         return this->Position;
     }
 
-    // resets the ball to initial Stuck Position (if ball is outside window bounds)
     void Reset(glm::vec2 position, glm::vec2 velocity)
     {
         this->Position = position;

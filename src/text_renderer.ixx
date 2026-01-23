@@ -14,46 +14,36 @@ import texture;
 import shader;
 import resource_manager;
 
-/// Holds all state information relevant to a character as loaded using FreeType
 struct Character {
-    unsigned int TextureID; // ID handle of the glyph texture
-    glm::ivec2   Size;      // Size of glyph
-    glm::ivec2   Bearing;   // Offset from baseline to left/top of glyph
-    unsigned int Advance;   // Horizontal offset to advance to next glyph
+    unsigned int TextureID;
+    glm::ivec2   Size;
+    glm::ivec2   Bearing;
+    unsigned int Advance;
 };
 
 export class TextRenderer
 {
 public:
-    // holds a list of pre-compiled Characters
     std::map<char, Character> Characters; 
-    // shader used for text rendering
     Shader TextShader;
-    // Use pixel-perfect rendering (GL_NEAREST)
     bool PixelPerfect;
     
-    // constructor
     TextRenderer(unsigned int width, unsigned int height, bool pixelPerfect = true);
-    // pre-compiles a list of characters from the given font
     void Load(std::string font, unsigned int fontSize);
-    // renders a string of text using the precompiled list of characters
     void RenderText(std::string text, float x, float y, float scale, glm::vec3 color = glm::vec3(1.0f));
-    // Get width of text string for centering
     float GetTextWidth(std::string text, float scale);
 private:
-    // render state
     unsigned int VAO, VBO;
 };
 
 TextRenderer::TextRenderer(unsigned int width, unsigned int height, bool pixelPerfect)
     : PixelPerfect(pixelPerfect)
 {
-    // load and configure shader
     this->TextShader = ResourceManager::LoadShader("shaders/text.vs", "shaders/text.fs", nullptr, "text");
     this->TextShader.use();
     this->TextShader.setMatrix4("projection", glm::ortho(0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f));
     this->TextShader.setInt("text", 0);
-    // configure VAO/VBO for texture quads
+
     glGenVertexArrays(1, &this->VAO);
     glGenBuffers(1, &this->VBO);
     glBindVertexArray(this->VAO);
@@ -67,30 +57,27 @@ TextRenderer::TextRenderer(unsigned int width, unsigned int height, bool pixelPe
 
 void TextRenderer::Load(std::string font, unsigned int fontSize)
 {
-    // first clear the previously loaded Characters
     this->Characters.clear();
-    // then initialize and load the FreeType library
+
     FT_Library ft;    
     if (FT_Init_FreeType(&ft))
         std::cout << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
-    // load font as face
+
     FT_Face face;
     if (FT_New_Face(ft, font.c_str(), 0, &face))
         std::cout << "ERROR::FREETYPE: Failed to load font: " << font << std::endl;
-    // set size to load glyphs as
+
     FT_Set_Pixel_Sizes(face, 0, fontSize);
-    // disable byte-alignment restriction
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1); 
-    // then for the first 128 ASCII characters, pre-load/compile their characters and store them
+
     for (GLubyte c = 0; c < 128; c++)
     {
-        // load character glyph 
         if (FT_Load_Char(face, c, FT_LOAD_RENDER))
         {
             std::cout << "ERROR::FREETYPE: Failed to load Glyph" << std::endl;
             continue;
         }
-        // generate texture
+
         unsigned int texture;
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
@@ -105,7 +92,6 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
             GL_UNSIGNED_BYTE,
             face->glyph->bitmap.buffer
         );
-        // set texture options - USE GL_NEAREST for pixel-perfect rendering
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         if (this->PixelPerfect) {
@@ -116,7 +102,6 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
        
-        // now store character for later use
         Character character = {
             texture,
             glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
@@ -126,7 +111,7 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
         Characters.insert(std::pair<char, Character>(c, character));
     }
     glBindTexture(GL_TEXTURE_2D, 0);
-    // destroy FreeType once we're finished
+
     FT_Done_Face(face);
     FT_Done_FreeType(ft);
 }
@@ -144,13 +129,11 @@ float TextRenderer::GetTextWidth(std::string text, float scale)
 
 void TextRenderer::RenderText(std::string text, float x, float y, float scale, glm::vec3 color)
 {
-    // activate corresponding render state	
     this->TextShader.use();
     this->TextShader.setVector3f("textColor", color);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(this->VAO);
 
-    // iterate through all characters
     std::string::const_iterator c;
     for (c = text.begin(); c != text.end(); c++) 
     {
@@ -161,7 +144,6 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
 
         float w = ch.Size.x * scale;
         float h = ch.Size.y * scale;
-        // update VBO for each character
         float vertices[6][4] = {
             { xpos,     ypos + h,   0.0f, 1.0f },
             { xpos + w, ypos,       1.0f, 0.0f },
@@ -171,16 +153,12 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
             { xpos + w, ypos + h,   1.0f, 1.0f },
             { xpos + w, ypos,       1.0f, 0.0f }
         };
-        // render glyph texture over quad
         glBindTexture(GL_TEXTURE_2D, ch.TextureID);
-        // update content of VBO memory
         glBindBuffer(GL_ARRAY_BUFFER, this->VBO);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
-        // render quad
         glDrawArrays(GL_TRIANGLES, 0, 6);
-        // now advance cursors for next glyph
         x += (ch.Advance >> 6) * scale;
     }
     glBindVertexArray(0);

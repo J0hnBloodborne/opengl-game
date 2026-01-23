@@ -7,9 +7,7 @@ import game;
 import resource_manager;
 import window;
 
-// The Width of the screen
 const unsigned int SCREEN_WIDTH = 800;
-// The height of the screen
 const unsigned int SCREEN_HEIGHT = 600;
 
 Game* Breakout;
@@ -20,52 +18,34 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
 
 int main(int argc, char *argv[])
 {
-    Window window(SCREEN_WIDTH, SCREEN_HEIGHT, "Breakout"); // Initialize Window (GLFW/GLAD)
+    Window window(SCREEN_WIDTH, SCREEN_HEIGHT, "Breakout");
 
     glfwSetKeyCallback(window.handle, key_callback);
     glfwSetMouseButtonCallback(window.handle, mouse_button_callback);
     glfwSetCursorPosCallback(window.handle, cursor_position_callback);
 
-    // OpenGL configuration
-    // --------------------
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     glEnable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Initialize game
-    // ---------------
     Breakout = new Game(SCREEN_WIDTH, SCREEN_HEIGHT);
     Breakout->Init();
 
-    // DeltaTime variables
-    // -------------------
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
-
-    // Start Game within Menu State
-    // ----------------------------
     Breakout->State = GAME_MENU;
 
     while (window.isOpen())
     {
-        // calculate delta time
-        // --------------------
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
         
-        // manage user input
-        // -----------------
         window.pollEvents();
         Breakout->ProcessInput(deltaTime);
-
-        // update game state
-        // -----------------
         Breakout->Update(deltaTime);
 
-        // render
-        // ------
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         Breakout->Render();
@@ -73,8 +53,7 @@ int main(int argc, char *argv[])
         window.swapBuffers();
     }
 
-    // delete managed resources
-    ResourceManager::Clear(); // Delete loaded shaders/textures
+    ResourceManager::Clear();
     delete Breakout;
 
     return 0;

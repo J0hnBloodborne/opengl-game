@@ -22,7 +22,6 @@ import texture;
 import shader;
 import text_renderer;
 
-// Game state
 export enum GameState {
     GAME_ACTIVE,
     GAME_MENU,
@@ -32,15 +31,13 @@ export enum GameState {
     GAME_PAUSE
 };
 
-// Pastel Pixel Art Color Palette
-const glm::vec3 COLOR_BG(0.95f, 0.90f, 0.95f);          // Soft lavender white
-const glm::vec3 COLOR_UI_OUTLINE(0.4f, 0.6f, 0.8f);    // Soft blue
-const glm::vec3 COLOR_ACCENT(1.0f, 0.6f, 0.8f);        // Pastel pink
-const glm::vec3 COLOR_HIGHLIGHT(0.6f, 0.9f, 0.9f);     // Pastel cyan
-const glm::vec3 COLOR_TEXT_NORMAL(0.3f, 0.3f, 0.4f);   // Soft dark
-const glm::vec3 COLOR_TEXT_SELECTED(0.9f, 0.4f, 0.6f); // Rose pink
+const glm::vec3 COLOR_BG(0.95f, 0.90f, 0.95f);
+const glm::vec3 COLOR_UI_OUTLINE(0.4f, 0.6f, 0.8f);
+const glm::vec3 COLOR_ACCENT(1.0f, 0.6f, 0.8f);
+const glm::vec3 COLOR_HIGHLIGHT(0.6f, 0.9f, 0.9f);
+const glm::vec3 COLOR_TEXT_NORMAL(0.3f, 0.3f, 0.4f);
+const glm::vec3 COLOR_TEXT_SELECTED(0.9f, 0.4f, 0.6f);
 
-// Represents the four possible (collision) directions
 enum Direction {
     UP,
     RIGHT,
@@ -48,16 +45,11 @@ enum Direction {
     LEFT
 };
 
-// Defines a Tuple of <collision?, what direction?, difference vector center - closest point>
 typedef std::tuple<bool, Direction, glm::vec2> Collision;
 
-// Initial size of the player paddle
-const glm::vec2 PLAYER_SIZE(100.0f, 20.0f);
-// Initial velocity of the player paddle
+const glm::vec2 PLAYER_SIZE(100.0f, 25.0f);
 const float PLAYER_VELOCITY(500.0f);
-// Initial velocity of the Ball
 const glm::vec2 INITIAL_BALL_VELOCITY(100.0f, -350.0f);
-// Radius of the ball object
 const float BALL_RADIUS = 12.5f;
 
 export class Game
@@ -74,10 +66,9 @@ public:
     unsigned int            Level;
     unsigned int            Lives;
     unsigned int            MenuSelection;
-    float                   ShakeTime;      // Screen shake duration
-    glm::vec2               ViewOffset;     // Screen shake offset
+    float                   ShakeTime;
+    glm::vec2               ViewOffset;
 
-    // Game-related objects
     std::unique_ptr<SpriteRenderer>    Renderer;
     std::unique_ptr<GameObject>        Player;
     std::unique_ptr<BallObject>        Ball;
@@ -90,13 +81,11 @@ public:
     { 
     }
     
-    // Screen shake trigger
     void TriggerShake(float duration)
     {
         this->ShakeTime = duration;
     }
     
-    // Update screen shake
     void UpdateShake(float dt)
     {
         if (this->ShakeTime > 0.0f)
@@ -112,7 +101,6 @@ public:
         }
     }
     
-    // Button hit detection helpers
     bool IsMouseOverButton(unsigned int buttonIndex)
     {
         float btnX = this->Width / 2.0f - 100.0f;
@@ -163,18 +151,15 @@ public:
 
     void Init()
     {
-        // load shaders
         ResourceManager::LoadShader("shaders/sprite.vs", "shaders/sprite.fs", nullptr, "sprite");
         ResourceManager::LoadShader("shaders/particle.vs", "shaders/particle.fs", nullptr, "particle");
 
-        // configure shaders
         glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(this->Width), static_cast<float>(this->Height), 0.0f, -1.0f, 1.0f);
         ResourceManager::GetShader("sprite").use().setInt("image", 0);
         ResourceManager::GetShader("sprite").setMatrix4("projection", projection);
         ResourceManager::GetShader("particle").use().setInt("sprite", 0);
         ResourceManager::GetShader("particle").setMatrix4("projection", projection);
 
-        // load textures - Pastel Pixel Art theme
         ResourceManager::LoadTexture("assets/background_pastel.png", false, "background");
         ResourceManager::LoadTexture("assets/ball.png", true, "ball");
         ResourceManager::LoadTexture("assets/block_crystal.png", false, "block");
@@ -186,14 +171,12 @@ public:
         ResourceManager::LoadTexture("assets/chibi_main.png", true, "chibi_main");
         ResourceManager::LoadTexture("assets/chibi_sad.png", true, "chibi_sad");
 
-        // set render-specific controls
         Renderer = std::make_unique<SpriteRenderer>(ResourceManager::GetShader("sprite"));
         Particles = std::make_unique<ParticleGenerator>(ResourceManager::GetShader("particle"), ResourceManager::GetTexture("particle"), 500);
         Text = std::make_unique<TextRenderer>(this->Width, this->Height);
         Text->Load("assets/fonts/arial.ttf", 24);
         Audio = std::make_unique<AudioEngine>();
 
-        // load levels
         GameLevel one; one.Load("assets/levels/one.lvl", this->Width, this->Height / 2);
         GameLevel two; two.Load("assets/levels/two.lvl", this->Width, this->Height / 2);
         GameLevel three; three.Load("assets/levels/three.lvl", this->Width, this->Height / 2);
@@ -204,47 +187,40 @@ public:
         this->Levels.push_back(four);
         this->Level = 0;
 
-        // configure game objects
         glm::vec2 playerPos = glm::vec2(this->Width / 2.0f - PLAYER_SIZE.x / 2.0f, this->Height - PLAYER_SIZE.y);
         Player = std::make_unique<GameObject>(playerPos, PLAYER_SIZE, ResourceManager::GetTexture("paddle"));
         
         glm::vec2 ballPos = playerPos + glm::vec2(PLAYER_SIZE.x / 2.0f - BALL_RADIUS, -BALL_RADIUS * 2.0f);
         Ball = std::make_unique<BallObject>(ballPos, BALL_RADIUS, INITIAL_BALL_VELOCITY, ResourceManager::GetTexture("ball"));
         
-        // play simple startup sound
         Audio->Play("assets/audio/bleep.wav");
     }
 
     void Update(float dt)
     {
-        // Update screen shake
         this->UpdateShake(dt);
         
-        // Only update game logic when active
         if (this->State != GAME_ACTIVE)
             return;
             
-        // update objects
         Ball->Move(dt, this->Width);
-        // check for collisions
         this->DoCollisions();
-        // update particles
         Particles->Update(dt, *Ball, 2, glm::vec2(Ball->Radius / 2.0f));
         if (Ball->Position.y >= this->Height)
         {
             --this->Lives;
-            this->TriggerShake(0.3f); // Shake on life loss
+            this->TriggerShake(0.3f);
             Audio->Play("assets/audio/lose.wav");
             if (this->Lives == 0)
             {
                 this->ResetLevel();
                 this->State = GAME_LOSE;
-                this->MenuSelection = 0; // Reset menu selection for Game Over screen
+                this->MenuSelection = 0;
             }
             this->ResetPlayer();
         }
 
-        // check win condition
+        // check win
         if (this->State == GAME_ACTIVE && this->Levels[this->Level].IsCompleted())
         {
             Audio->Play("assets/audio/win.wav");
@@ -259,7 +235,6 @@ public:
     {
         if (this->State == GAME_MENU)
         {
-            // Keyboard navigation
             if (this->Keys[GLFW_KEY_UP] && !this->KeysProcessed[GLFW_KEY_UP])
             {
                 this->MenuSelection = (this->MenuSelection + 2) % 3;
@@ -276,17 +251,17 @@ public:
                 (this->MouseButtons[0] && !this->MouseProcessed[0] && IsMouseOverButton(this->MenuSelection)))
             {
                 Audio->Play("assets/audio/ui_confirm.wav");
-                if (this->MenuSelection == 0) // Start Game
+                if (this->MenuSelection == 0)
                 {
                     this->State = GAME_LEVEL_SELECT;
                     this->MenuSelection = 0;
                 }
-                else if (this->MenuSelection == 1) // Level Select
+                else if (this->MenuSelection == 1)
                 {
                     this->State = GAME_LEVEL_SELECT;
                     this->MenuSelection = 0;
                 }
-                else if (this->MenuSelection == 2) // Exit
+                else if (this->MenuSelection == 2)
                     glfwSetWindowShouldClose(glfwGetCurrentContext(), true);
                 
                 this->KeysProcessed[GLFW_KEY_ENTER] = true;
@@ -298,12 +273,10 @@ public:
                 this->KeysProcessed[GLFW_KEY_ESCAPE] = true;
             }
             
-            // Mouse hover detection for menu
             UpdateMenuHover();
         }
         if (this->State == GAME_LEVEL_SELECT)
         {
-            // Keyboard navigation
             if (this->Keys[GLFW_KEY_UP] && !this->KeysProcessed[GLFW_KEY_UP])
             {
                 this->MenuSelection = (this->MenuSelection + 4) % 5;
@@ -340,7 +313,6 @@ public:
                 this->KeysProcessed[GLFW_KEY_ESCAPE] = true;
             }
             
-            // Mouse hover detection
             UpdateLevelSelectHover();
         }
         if (this->State == GAME_WIN || this->State == GAME_LOSE)
@@ -370,7 +342,6 @@ public:
         }
         if (this->State == GAME_ACTIVE)
         {
-            // ESC pauses the game
             if (this->Keys[GLFW_KEY_ESCAPE] && !this->KeysProcessed[GLFW_KEY_ESCAPE])
             {
                 this->State = GAME_PAUSE;
@@ -378,7 +349,6 @@ public:
             }
             
             float velocity = PLAYER_VELOCITY * dt;
-            // move playerboard
             if (this->Keys[GLFW_KEY_A] || this->Keys[GLFW_KEY_LEFT])
             {
                 if (Player->Position.x >= 0.0f)
@@ -404,32 +374,25 @@ public:
 
     void Render()
     {
-        // draw background
         Renderer->DrawSprite(ResourceManager::GetTexture("background"), glm::vec2(0.0f, 0.0f), glm::vec2(this->Width, this->Height), 0.0f);
 
         if (this->State == GAME_ACTIVE || this->State == GAME_WIN || this->State == GAME_LOSE || this->State == GAME_PAUSE)
         {
-            // Apply screen shake offset
             glm::vec2 shakeOffset = this->ViewOffset;
             
-            // Draw Shadows (Fake 3D Depth) - Pass 1
             glm::vec2 shadowOffset(3.0f, 3.0f);
-            glm::vec3 shadowColor(0.1f, 0.1f, 0.1f); // Dark Grey/Blackish
+            glm::vec3 shadowColor(0.1f, 0.1f, 0.1f);
 
-            // Shadows for Level Bricks
             for (GameObject &box : this->Levels[this->Level].Bricks)
             {
                 if (!box.Destroyed)
                     Renderer->DrawSprite(box.Sprite, box.Position + shadowOffset + shakeOffset, box.Size, box.Rotation, shadowColor);
             }
             
-            // Shadow for Player
             Renderer->DrawSprite(Player->Sprite, Player->Position + shadowOffset + shakeOffset, Player->Size, Player->Rotation, shadowColor);
             
-            // Shadow for Ball
             Renderer->DrawSprite(Ball->Sprite, Ball->Position + shadowOffset + shakeOffset, glm::vec2(Ball->Radius * 2.0f), 0.0f, shadowColor);
 
-            // Draw Main Objects - Pass 2 (with shake)
             for (GameObject &box : this->Levels[this->Level].Bricks)
             {
                 if (!box.Destroyed)
@@ -439,9 +402,7 @@ public:
             Particles->Draw();
             Renderer->DrawSprite(Ball->Sprite, Ball->Position + shakeOffset, glm::vec2(Ball->Radius * 2.0f), 0.0f, Ball->Color);
             
-            // UI - show during active and pause
             if (this->State == GAME_ACTIVE || this->State == GAME_PAUSE) {
-                 // Render heart icons for lives
                  float heartSize = 28.0f;
                  for (unsigned int i = 0; i < this->Lives; i++)
                  {
@@ -455,30 +416,33 @@ public:
         
         if (this->State == GAME_MENU)
         {
-            // Mascot chibi on the right side
             Renderer->DrawSprite(ResourceManager::GetTexture("chibi_main"), 
                 glm::vec2(this->Width - 180.0f, this->Height / 2.0f - 80.0f), 
                 glm::vec2(160.0f, 160.0f), 0.0f);
             
-            // Title with pastel accent
             Text->RenderText("BREAKOUT", this->Width / 2.0f - 100.0f, 120.0f, 2.0f, COLOR_ACCENT);
 
-            float btnX = this->Width / 2.0f - 100.0f;
-            float btnY = this->Height / 2.0f;
+            float btnX = this->Width / 2.0f - 80.0f;
+            float btnY = this->Height / 2.0f - 20.0f;
+            float btnW = 160.0f;
+            float btnH = 40.0f;
+            float btnSpacing = 50.0f;
             
-            // Draw button backgrounds with soft colors
             for (int i = 0; i < 3; i++)
             {
-                float y = btnY + i * 50.0f;
-                if (this->MenuSelection == (unsigned int)i)
-                    Renderer->DrawSprite(ResourceManager::GetTexture("button"), glm::vec2(btnX - 10.0f, y - 5.0f), glm::vec2(220.0f, 35.0f), 0.0f, COLOR_HIGHLIGHT);
+                float y = btnY + i * btnSpacing;
+                bool selected = (this->MenuSelection == (unsigned int)i);
+                glm::vec2 uvMin = selected ? glm::vec2(0.0f, 0.5f) : glm::vec2(0.0f, 0.0f);
+                glm::vec2 uvMax = selected ? glm::vec2(1.0f, 1.0f) : glm::vec2(1.0f, 0.5f);
+                Renderer->DrawSpriteAtlas(ResourceManager::GetTexture("button"), 
+                    glm::vec2(btnX - 15.0f, y - 5.0f), 
+                    glm::vec2(btnW, btnH), uvMin, uvMax);
             }
             
-            Text->RenderText("> Start Game", btnX, btnY, 1.0f, this->MenuSelection == 0 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
-            Text->RenderText("> Select Level", btnX, btnY + 50.0f, 1.0f, this->MenuSelection == 1 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
-            Text->RenderText("> Exit", btnX, btnY + 100.0f, 1.0f, this->MenuSelection == 2 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Start Game", btnX, btnY + 8.0f, 0.8f, this->MenuSelection == 0 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Select Level", btnX, btnY + btnSpacing + 8.0f, 0.8f, this->MenuSelection == 1 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Exit", btnX, btnY + btnSpacing * 2 + 8.0f, 0.8f, this->MenuSelection == 2 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
             
-            // Controls hint
             Text->RenderText("Arrow Keys / Mouse to navigate, Enter / Click to select", 120.0f, this->Height - 40.0f, 0.5f, COLOR_UI_OUTLINE);
         }
 
@@ -486,29 +450,34 @@ public:
         {
             Text->RenderText("SELECT LEVEL", this->Width / 2.0f - 120.0f, 100.0f, 1.5f, COLOR_ACCENT);
             
-            float btnX = this->Width / 2.0f - 100.0f;
-            float btnY = this->Height / 2.0f - 60.0f;
+            float btnX = this->Width / 2.0f - 80.0f;
+            float btnY = this->Height / 2.0f - 100.0f;
+            float btnW = 160.0f;
+            float btnH = 40.0f;
+            float btnSpacing = 50.0f;
             
-            // Draw button backgrounds with pastel highlight
             for (int i = 0; i < 5; i++)
             {
-                float y = btnY + i * 50.0f;
-                if (this->MenuSelection == (unsigned int)i)
-                    Renderer->DrawSprite(ResourceManager::GetTexture("block"), glm::vec2(btnX - 10.0f, y - 5.0f), glm::vec2(220.0f, 35.0f), 0.0f, COLOR_HIGHLIGHT * 0.5f);
+                float y = btnY + i * btnSpacing;
+                bool selected = (this->MenuSelection == (unsigned int)i);
+                glm::vec2 uvMin = selected ? glm::vec2(0.0f, 0.5f) : glm::vec2(0.0f, 0.0f);
+                glm::vec2 uvMax = selected ? glm::vec2(1.0f, 1.0f) : glm::vec2(1.0f, 0.5f);
+                Renderer->DrawSpriteAtlas(ResourceManager::GetTexture("button"), 
+                    glm::vec2(btnX - 15.0f, y - 5.0f), 
+                    glm::vec2(btnW, btnH), uvMin, uvMax);
             }
             
-            Text->RenderText("> Level 1", btnX, btnY, 1.0f, this->MenuSelection == 0 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
-            Text->RenderText("> Level 2", btnX, btnY + 50.0f, 1.0f, this->MenuSelection == 1 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
-            Text->RenderText("> Level 3", btnX, btnY + 100.0f, 1.0f, this->MenuSelection == 2 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
-            Text->RenderText("> Level 4", btnX, btnY + 150.0f, 1.0f, this->MenuSelection == 3 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
-            Text->RenderText("> Back", btnX, btnY + 200.0f, 1.0f, this->MenuSelection == 4 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Level 1", btnX, btnY + 8.0f, 0.8f, this->MenuSelection == 0 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Level 2", btnX, btnY + btnSpacing + 8.0f, 0.8f, this->MenuSelection == 1 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Level 3", btnX, btnY + btnSpacing * 2 + 8.0f, 0.8f, this->MenuSelection == 2 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Level 4", btnX, btnY + btnSpacing * 3 + 8.0f, 0.8f, this->MenuSelection == 3 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
+            Text->RenderText("Back", btnX, btnY + btnSpacing * 4 + 8.0f, 0.8f, this->MenuSelection == 4 ? COLOR_TEXT_SELECTED : COLOR_TEXT_NORMAL);
             
             Text->RenderText("ESC to go back", this->Width / 2.0f - 70.0f, this->Height - 40.0f, 0.5f, COLOR_UI_OUTLINE);
         }
 
         if (this->State == GAME_WIN)
         {
-            // Happy chibi for win
             Renderer->DrawSprite(ResourceManager::GetTexture("chibi_main"), 
                 glm::vec2(this->Width / 2.0f - 60.0f, this->Height / 2.0f - 120.0f), 
                 glm::vec2(120.0f, 120.0f), 0.0f);
@@ -518,7 +487,6 @@ public:
         
         if (this->State == GAME_LOSE)
         {
-            // Sad chibi for game over
             Renderer->DrawSprite(ResourceManager::GetTexture("chibi_sad"), 
                 glm::vec2(this->Width / 2.0f - 60.0f, this->Height / 2.0f - 120.0f), 
                 glm::vec2(120.0f, 120.0f), 0.0f);
@@ -528,7 +496,6 @@ public:
         
         if (this->State == GAME_PAUSE)
         {
-            // Semi-transparent overlay effect (darken existing scene)
             Text->RenderText("PAUSED", this->Width / 2.0f - 70.0f, this->Height / 2.0f - 40.0f, 2.0f, COLOR_ACCENT);
             Text->RenderText("ESC to Resume", this->Width / 2.0f - 70.0f, this->Height / 2.0f + 20.0f, 0.8f, COLOR_TEXT_NORMAL);
             Text->RenderText("ENTER to Quit to Menu", this->Width / 2.0f - 100.0f, this->Height / 2.0f + 50.0f, 0.8f, COLOR_TEXT_NORMAL);
@@ -542,65 +509,56 @@ public:
             if (!box.Destroyed)
             {
                 Collision collision = CheckCollision(*Ball, box);
-                if (std::get<0>(collision)) // if collision is true
+                if (std::get<0>(collision))
                 {
-                    // destroy block if not solid
                     if (!box.IsSolid) {
                         box.Destroyed = true;
                         Audio->Play("assets/audio/bleep.wav");
                     } else {
-                        // Shake on solid block hit
                         this->TriggerShake(0.05f);
                         Audio->Play("assets/audio/solid.wav");
                     }
                     
-                    // collision resolution
                     Direction dir = std::get<1>(collision);
                     glm::vec2 diff_vector = std::get<2>(collision);
-                    if (dir == LEFT || dir == RIGHT) // horizontal collision
+                    if (dir == LEFT || dir == RIGHT)
                     {
-                        Ball->Velocity.x = -Ball->Velocity.x; // reverse horizontal velocity
-                        // relocate
+                        Ball->Velocity.x = -Ball->Velocity.x;
                         float penetration = Ball->Radius - std::abs(diff_vector.x);
                         if (dir == LEFT)
-                            Ball->Position.x += penetration; // move ball to right
+                            Ball->Position.x += penetration;
                         else
-                            Ball->Position.x -= penetration; // move ball to left;
+                            Ball->Position.x -= penetration;
                     }
-                    else // vertical collision
+                    else
                     {
-                        Ball->Velocity.y = -Ball->Velocity.y; // reverse vertical velocity
-                        // relocate
+                        Ball->Velocity.y = -Ball->Velocity.y;
                         float penetration = Ball->Radius - std::abs(diff_vector.y);
                         if (dir == UP)
-                            Ball->Position.y -= penetration; // move ball back up
+                            Ball->Position.y -= penetration;
                         else
-                            Ball->Position.y += penetration; // move ball back down
+                            Ball->Position.y += penetration;
                     }				
                 }
             }
         }
         
-        // Check collision for player pad
         Collision result = CheckCollision(*Ball, *Player);
         if (!Ball->Stuck && std::get<0>(result))
         {
-            // check where it hit the board, and change velocity based on where it hit the board
             float centerBoard = Player->Position.x + Player->Size.x / 2.0f;
             float distance = (Ball->Position.x + Ball->Radius) - centerBoard;
             float percentage = distance / (Player->Size.x / 2.0f);
-            // then move accordingly
             float strength = 2.0f;
             glm::vec2 oldVelocity = Ball->Velocity;
             Ball->Velocity.x = INITIAL_BALL_VELOCITY.x * percentage * strength; 
             Ball->Velocity.y = -1.0f * std::abs(Ball->Velocity.y);
             Ball->Velocity = glm::normalize(Ball->Velocity) * glm::length(oldVelocity);
 
-            Audio->Play("assets/audio/paddle_hit.wav"); // Paddle hit sound
+            Audio->Play("assets/audio/paddle_hit.wav");
         }
     }
 
-    // Reset
     void ResetLevel()
     {
         if (this->Level == 0)
@@ -615,39 +573,29 @@ public:
 
     void ResetPlayer()
     {
-        // reset player/ball stats
         Player->Size = PLAYER_SIZE;
         Player->Position = glm::vec2(this->Width / 2.0f - PLAYER_SIZE.x / 2.0f, this->Height - PLAYER_SIZE.y);
         Ball->Reset(Player->Position + glm::vec2(PLAYER_SIZE.x / 2.0f - BALL_RADIUS, -(BALL_RADIUS * 2.0f)), INITIAL_BALL_VELOCITY);
     }
 
 private:
-    // collision detection
-    bool CheckCollision(GameObject &one, GameObject &two) // AABB - AABB collision
+    bool CheckCollision(GameObject &one, GameObject &two)
     {
-        // collision x-axis?
         bool collisionX = one.Position.x + one.Size.x >= two.Position.x &&
             two.Position.x + two.Size.x >= one.Position.x;
-        // collision y-axis?
         bool collisionY = one.Position.y + one.Size.y >= two.Position.y &&
             two.Position.y + two.Size.y >= one.Position.y;
-        // collision only if on both axes
         return collisionX && collisionY;
     }
 
-    Collision CheckCollision(BallObject &one, GameObject &two) // AABB - Circle collision
+    Collision CheckCollision(BallObject &one, GameObject &two)
     {
-        // get center point circle first 
         glm::vec2 center(one.Position + one.Radius);
-        // calculate AABB info (center, half-extents)
         glm::vec2 aabb_half_extents(two.Size.x / 2.0f, two.Size.y / 2.0f);
         glm::vec2 aabb_center(two.Position.x + aabb_half_extents.x, two.Position.y + aabb_half_extents.y);
-        // get difference vector between both centers
         glm::vec2 difference = center - aabb_center;
         glm::vec2 clamped = glm::clamp(difference, -aabb_half_extents, aabb_half_extents);
-        // now that we know the clamped values, add this to AABB_center and we get the value of box closest to circle
         glm::vec2 closest = aabb_center + clamped;
-        // now retrieve vector between center circle and closest point AABB and check if length < radius
         difference = closest - center;
         
         if (glm::length(difference) < one.Radius)
